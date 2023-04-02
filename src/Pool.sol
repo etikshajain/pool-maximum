@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.15;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import "openzeppelin-contracts/contracts/access/Ownable.sol";
+import "openzeppelin-contracts/contracts/utils/math/SafeMath.sol";
 
 import "./PrizePool.sol";
 
@@ -26,9 +26,11 @@ contract Pool is Ownable {
     }
     PrizePoolStruct[] public prizePools;
 
-    function createPrizePool(string memory name, string memory symbol, address yearnVaultAddress, address token, uint256 awardShare) onlyOwner public {
+    function createPrizePool(string memory name, string memory symbol, address yearnVaultAddress, address token, uint256 awardShare) onlyOwner public returns(PrizePool ) {
         PrizePool pp = new PrizePool(name, symbol, yearnVaultAddress, token, address(this), awardShare);
         prizePools.push(PrizePoolStruct(address(pp), token, yearnVaultAddress, pp.depositDeadline(), pp.nextDrawTime(), awardShare));
+        //event
+        return pp;
     }
 
     function fetchPools() public view returns(PrizePoolStruct[] memory) {

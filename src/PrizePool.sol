@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.15;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import {VaultAPI} from "http://github.com/yearn/yearn-vaults/contracts/BaseStrategy.sol";
+import "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import "openzeppelin-contracts/contracts/access/Ownable.sol";
+import "openzeppelin-contracts/contracts/utils/math/SafeMath.sol";
+import {VaultAPI} from "./BaseStrategy.sol";
 import "./Interfaces/IPool.sol";
 import "./Ticket.sol";
 
@@ -43,8 +43,8 @@ contract PrizePool is Ownable {
         // deploy ticket 
         ticket = new Ticket(name, symbol, 18, address(this));
         pool = IPool(_poolAddress);
-        nextDrawTime = block.timestamp + 1 weeks;
-        depositDeadline = block.timestamp + 1 days;
+        nextDrawTime = block.timestamp + 10 minutes;
+        depositDeadline = block.timestamp + 2 minutes;
         vaultAddress = _vaultAddress;
         token = _token;
         count = 0;
@@ -52,7 +52,8 @@ contract PrizePool is Ownable {
         v = VaultAPI(vaultAddress);
     }
 
-    function deposit(uint256 _amount) external {
+    // UI approval()
+    function deposit(uint256 _amount) external returns (uint256){
         require(block.timestamp < depositDeadline, "Sorry the deposit deadline is passed, please wait till the next round starts.");
         require(IERC20(token).transferFrom(msg.sender, address(this), _amount), "Transfer failed");
 
@@ -64,10 +65,11 @@ contract PrizePool is Ownable {
 
         totalDeposits = totalDeposits.add(_amount);
         deposits[msg.sender] = deposits[msg.sender].add(_amount);
+        return deposits[msg.sender];
     }
 
-    function depositToYv() onlyOwner external {
-        require(block.timestamp > depositDeadline, "Deposition perios is still going on!");
+    function depositToYv() onlyOwner external returns (uint256){
+        require(block.timestamp > depositDeadline, "Deposition period is still going on!");
         require(block.timestamp < nextDrawTime, "Cannot deposit to vault now!");
         require(totalDeposits > 0, "Amount must be greater than 0");
 
@@ -77,6 +79,7 @@ contract PrizePool is Ownable {
         IERC20(token).approve(address(v), totalDeposits);
         // deposit funds into vault
         v.deposit(totalDeposits);
+        return 0;
         // balance of prizepool in vault after deposit
         uint256 afterBalance = v.balanceOf(address(this));
         // shares of prizepool in vault
@@ -84,26 +87,34 @@ contract PrizePool is Ownable {
         require(shares > 0, "Shares must be greater than 0");
 
         totalTicketSupply = shares;
-
+        
+        uint256 curr_count = count;
         // mint tokens
-        for(uint i = 0; i <= count; i++) {
+        for(uint i = 0; i <= curr_count;) {
+
             tickets[index[i]] = (deposits[index[i]].div(totalDeposits)).mul(totalTicketSupply);
             ticket.controllerMint(index[i], tickets[index[i]]);
             // update global deposit amount of the user
             pool.updateUserDeposit(tickets[index[i]], index[i]);
             globalDeposits[index[i]] = pool.getUserTotalDeposit(index[i]);
             totalGlobalDeposits = totalGlobalDeposits.add(globalDeposits[index[i]]);
+
+            unchecked{
+                ++i;
+            }
         }
+        return totalTicketSupply;
     }
 
     function withdrawFromYv() onlyOwner external {
+        // deadline check
         require(totalTicketSupply > 0, "Amount must be greater than 0");
         require(totalTicketSupply <= v.balanceOf(address(this)), "Insufficient balance");
-        totalTicketSupply = 0;
         // balance of prizepool eth before withdrawal
         uint256 beforeBalance = IERC20(token).balanceOf(address(this));
         // withdraw whole amount from vault
         v.withdraw(totalTicketSupply);
+        totalTicketSupply = 0;
         // balance of prizepool eth after withdrawal
         uint256 afterBalance = IERC20(token).balanceOf(address(this));
         require(afterBalance > beforeBalance, "Withdrawal failed");
@@ -134,7 +145,6 @@ contract PrizePool is Ownable {
 
     function drawWinner() private onlyOwner returns (uint256){
         require(block.timestamp >= nextDrawTime, "Not enough time elapsed");
-
         uint256 randomNumber = uint256(keccak256(abi.encodePacked(block.timestamp, block.difficulty)));
         winner = uint256(uint256(randomNumber) % count);
         return winner;

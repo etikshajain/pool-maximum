@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.15;
 
-import "@openzeppelin/contracts/token/ERC20/extensions/draft-ERC20Permit.sol";
+import "openzeppelin-contracts/contracts/token/ERC20/extensions/draft-ERC20Permit.sol";
 
 /**
  * @title  PoolTogether V4 Controlled ERC20 Token
