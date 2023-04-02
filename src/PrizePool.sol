@@ -6,8 +6,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import {VaultAPI} from "http://github.com/yearn/yearn-vaults/contracts/BaseStrategy.sol";
-import "./IPool.sol";
-import "./ITicket.sol";
+import "./Interfaces/IPool.sol";
+import "./Ticket.sol";
 
 contract PrizePool is Ownable {
     using SafeMath for uint256;
@@ -15,7 +15,10 @@ contract PrizePool is Ownable {
     address public vaultAddress;
     IPool public pool;
     address public token; //token to be deposited into vault-eth address
-    ITicket public ticket;
+    Ticket public ticket;
+
+    // percentage of interest to be given to the winner and rest to be distributed among the rest
+    uint256 public awardShare;
 
     uint256 public winner;
     uint256 public nextDrawTime;
@@ -30,17 +33,15 @@ contract PrizePool is Ownable {
     uint256 public totalTicketSupply;
     uint256 public totalFundsRetrieved;
     uint256 public totalInterest;
-    // percentage of interest to be given to the winner and rest to be distributed among the rest
-    uint256 public awardShare;
 
     VaultAPI public v;
 
     mapping(address => uint256) public globalDeposits;
     uint256 public totalGlobalDeposits;
 
-    constructor(address _ticketAddress, address _vaultAddress, address _token, address _poolAddress, uint256 _awardShare) {
+    constructor(string memory name, string memory symbol, address _vaultAddress, address _token, address _poolAddress, uint256 _awardShare) {
         // deploy ticket 
-        ticket = ITicket(_ticketAddress);
+        ticket = new Ticket(name, symbol, 18, address(this));
         pool = IPool(_poolAddress);
         nextDrawTime = block.timestamp + 1 weeks;
         depositDeadline = block.timestamp + 1 days;
@@ -65,7 +66,7 @@ contract PrizePool is Ownable {
         deposits[msg.sender] = deposits[msg.sender].add(_amount);
     }
 
-    function depositToYv() external {
+    function depositToYv() onlyOwner external {
         require(block.timestamp > depositDeadline, "Deposition perios is still going on!");
         require(block.timestamp < nextDrawTime, "Cannot deposit to vault now!");
         require(totalDeposits > 0, "Amount must be greater than 0");
@@ -89,13 +90,13 @@ contract PrizePool is Ownable {
             tickets[index[i]] = (deposits[index[i]].div(totalDeposits)).mul(totalTicketSupply);
             ticket.controllerMint(index[i], tickets[index[i]]);
             // update global deposit amount of the user
-            pool.updateDeposit(tickets[index[i]], index[i]);
-            globalDeposits[index[i]] = pool.getTotalDeposit(index[i]);
+            pool.updateUserDeposit(tickets[index[i]], index[i]);
+            globalDeposits[index[i]] = pool.getUserTotalDeposit(index[i]);
             totalGlobalDeposits = totalGlobalDeposits.add(globalDeposits[index[i]]);
         }
     }
 
-    function withdrawFromYv() external {
+    function withdrawFromYv() onlyOwner external {
         require(totalTicketSupply > 0, "Amount must be greater than 0");
         require(totalTicketSupply <= v.balanceOf(address(this)), "Insufficient balance");
         totalTicketSupply = 0;
@@ -139,7 +140,14 @@ contract PrizePool is Ownable {
         return winner;
     }
 
-    function calculateInterest(address _user) private view returns(uint256) {
+    function checkwinner() public view returns(bool) {
+        require(block.timestamp >= nextDrawTime, "Not enough time elapsed");
+        return index[winner] == msg.sender;
+    }
+
+    function calculateInterest(address _user) public view returns(uint256) {
+        require(block.timestamp >= nextDrawTime, "Not enough time elapsed");
+
         // check if user is winner
         if(index[winner]==_user){
             // you are a winner

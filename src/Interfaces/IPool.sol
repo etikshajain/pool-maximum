@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 interface IPool {
 
-    function updateDeposit(uint256 _amount, address _user) external;
+    function updateUserDeposit(uint256 _amount, address _user) external;
 
-    function getTotalDeposit(address _user) external view returns (uint256);
+    function getUserTotalDeposit(address _user) external view returns (uint256);
 }
