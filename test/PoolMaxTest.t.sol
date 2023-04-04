@@ -124,7 +124,6 @@ contract PoolMaxiTester is Test {
         vm.rollFork(16963412);
         vm.selectFork(ethFork);
         // checking deposits and total deposits persistency
-        // deposits and totalDeposits
         console.log("chandler balance");
         console.log(IERC20(weth_token).balanceOf(chandler));
         console.log("joey balance");

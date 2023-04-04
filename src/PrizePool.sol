@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.15;
 
-import "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
-import "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import "openzeppelin-contracts/contracts/access/Ownable.sol";
-import "openzeppelin-contracts/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import {VaultAPI} from "./BaseStrategy.sol";
-import "./Interfaces/IPool.sol";
+import "./IPool.sol";
 import "./Ticket.sol";
 
 contract PrizePool is Ownable {
@@ -43,8 +44,8 @@ contract PrizePool is Ownable {
         // deploy ticket 
         ticket = new Ticket(name, symbol, 18, address(this));
         pool = IPool(_poolAddress);
-        nextDrawTime = block.timestamp + 10 minutes;
-        depositDeadline = block.timestamp + 2 minutes;
+        nextDrawTime = block.timestamp + 2 hours;
+        depositDeadline = block.timestamp + 1 hours;
         vaultAddress = _vaultAddress;
         token = _token;
         count = 0;
@@ -53,9 +54,9 @@ contract PrizePool is Ownable {
     }
 
     // UI approval()
-    function deposit(uint256 _amount) external returns (uint256){
+    function deposit() external payable returns (uint256){
         require(block.timestamp < depositDeadline, "Sorry the deposit deadline is passed, please wait till the next round starts.");
-        require(IERC20(token).transferFrom(msg.sender, address(this), _amount), "Transfer failed");
+        // require(IERC20(token).transferFrom(msg.sender, address(this), _amount), "Transfer failed");
 
         // check if user has already deposited
         if(deposits[msg.sender] == 0){
@@ -63,8 +64,8 @@ contract PrizePool is Ownable {
             count = count.add(1);
         }
 
-        totalDeposits = totalDeposits.add(_amount);
-        deposits[msg.sender] = deposits[msg.sender].add(_amount);
+        totalDeposits = totalDeposits.add(msg.value);
+        deposits[msg.sender] = deposits[msg.sender].add(msg.value);
         return deposits[msg.sender];
     }
 
@@ -79,7 +80,6 @@ contract PrizePool is Ownable {
         IERC20(token).approve(address(v), totalDeposits);
         // deposit funds into vault
         v.deposit(totalDeposits);
-        return 0;
         // balance of prizepool in vault after deposit
         uint256 afterBalance = v.balanceOf(address(this));
         // shares of prizepool in vault
@@ -169,4 +169,5 @@ contract PrizePool is Ownable {
             return ((interest).div(totalGlobalDeposits)).mul(globalDeposits[_user]);
         }
     }
+
 }
